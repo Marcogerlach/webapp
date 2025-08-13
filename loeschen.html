@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="de">
+	<head>
+		<meta charset="UTF-8" />
+		<title>Informationsdienst</title>
+		<link rel="icon" type="image/x-icon" href="Bilder Website/favicon.ico" />
+		<link rel="stylesheet" href="/css/loestyle.css" />
+		<link
+			rel="stylesheet"
+			href="https://cdn.jsdelivr.net/npm/choices.js/public/assets/styles/choices.min.css"
+		/>
+		<script src="https://cdn.jsdelivr.net/npm/choices.js/public/assets/scripts/choices.min.js"></script>
+		<script defer src="script.js"></script>
+		<script defer src="apiAnfragen.js"></script>
+	</head>
+	<body>
+		<div class="container">
+			<div class="sidebar">
+				<h2>Menü</h2>
+				<button id="Info" onclick="window.location.href='Index.html'">
+					Info
+				</button>
+				<button
+					id="nachichten"
+					onclick="window.location.href='Nachichten.html'"
+				>
+					Nachrichten
+				</button>
+				<button id="Löschen" onclick="window.location.href='Loeschen.html'">
+					Löschen
+				</button>
+				<button
+					id="hinzufügen"
+					onclick="window.location.href='hinzufuegen.html'"
+				>
+					hinzufügen
+				</button>
+			</div>
+			<div id="overlay"></div>
+			<div class="main-content">
+				<div class="header-top">
+					<h2>Hier kannst du alte Gruppen löschen</h2>
+					<img
+						src="Bilder Website/Deutsche_Rentenversicherung_logo.svg.png"
+						alt="Logo"
+					/>
+				</div>
+				<div class="add-group">
+					<h2>alte Gruppe Löschen</h2>
+					<select id="group-select-loeschen" multiple></select>
+					<button onclick="loeschen()">Löschen</button>
+				</div>
+			</div>
+		</div>
+	</body>
+</html>

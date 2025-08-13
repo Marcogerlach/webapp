@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="de">
+	<head>
+		<meta charset="UTF-8" />
+		<title>Informationsdienst</title>
+		<link rel="icon" type="image/x-icon" href="Bilder Website/favicon.ico" />
+		<link rel="stylesheet" href="/css/nachstyle.css" />
+		<link
+			rel="stylesheet"
+			href="https://cdn.jsdelivr.net/npm/choices.js/public/assets/styles/choices.min.css"
+		/>
+		<script src="https://cdn.jsdelivr.net/npm/choices.js/public/assets/scripts/choices.min.js"></script>
+		<script defer src="script.js"></script>
+		<script defer src="apiAnfragen.js"></script>
+	</head>
+	<body>
+		<div class="container">
+			<div class="sidebar">
+				<h2>Menü</h2>
+				<button id="Info" onclick="window.location.href='Index.html'">
+					Info
+				</button>
+				<button
+					id="nachichten"
+					onclick="window.location.href='Nachichten.html'"
+				>
+					Nachrichten
+				</button>
+				<button id="Löschen" onclick="window.location.href='Loeschen.html'">
+					Löschen
+				</button>
+				<button
+					id="hinzufügen"
+					onclick="window.location.href='hinzufuegen.html'"
+				>
+					hinzufügen
+				</button>
+			</div>
+			<div id="overlay"></div>
+			<div class="main-content">
+				<div class="form-header">
+					<h2>Nachricht senden</h2>
+					<img
+						src="Bilder Website/Deutsche_Rentenversicherung_logo.svg.png"
+						alt="Logo"
+					/>
+				</div>
+
+				<label for="message">Nachricht:</label>
+				<textarea
+					id="message"
+					rows="5"
+					placeholder="Hier deine Nachricht eingeben..."
+				></textarea>
+
+				<label for="year-select">Jahrgang wählen:</label>
+				<select id="year-select" multiple></select>
+
+				<div class="stud-select-container">
+					<label for="stud-select">Studenten oder Auszubildende:</label>
+					<select id="stud-select" multiple></select>
+				</div>
+
+				<div class="group-select-container">
+					<label for="group-select">Gruppe wählen:</label>
+					<select id="group-select" multiple></select>
+				</div>
+
+				<div class="checkbox-container">
+					<input type="checkbox" id="sendToAll" />
+					<label for="sendToAll">An alle senden</label>
+				</div>
+
+				<button onclick="senden()">Senden</button>
+			</div>
+		</div>
+	</body>
+</html>
