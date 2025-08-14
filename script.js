@@ -132,7 +132,7 @@ function senden() {
 		message: message,
 		groups: selectedGroupNames,
 	};
-	buildJson(myObject);
+	buildJson(myObject, selectedGroupNames);
 }
 
 /**
@@ -140,6 +140,7 @@ function senden() {
  *
  * Args:
  *   myObject (Object): Objekt mit Nachricht und Gruppen-Array
+ *   selectedGroupNames (Array): Array mit Gruppennamen für URL-Generierung
  *
  * Funktionsweise:
  * - Konvertiert Objekt zu JSON-String für Anzeige/Logging
@@ -147,11 +148,11 @@ function senden() {
  * - Erneuert Choices.js Auswahl für nächste Eingabe
  * - Lädt Gruppendaten neu für aktuellen Zustand
  */
-function buildJson(myObject) {
+function buildJson(myObject, selectedGroupNames) {
 	// Konvertiere Objekt zu formattiertem JSON-String
 	const jsonString = JSON.stringify(myObject, null, 2);
 
-	sendJSON(jsonString); // Sende JSON an Backend
+	sendJSON(jsonString, selectedGroupNames[0] || "DI24"); // Sende JSON an Backend mit erster Gruppe als Fallback
 
 	// Erfolgsmeldung und Seitenaktualisierung
 	alert("Nachricht erfolgreich gesendet!");
@@ -172,10 +173,8 @@ function buildJson(myObject) {
 			sendToAllCheckbox.checked = false;
 		}
 
-		// Aktualisiere die Gruppenliste für konsistenten Zustand
-		if (typeof ladeGruppen === "function") {
-			ladeGruppen();
-		}
+		// ENTFERNT: ladeGruppen() Aufruf um Endlosschleife zu vermeiden
+		console.log("Formular zurückgesetzt - bereit für neue Nachricht");
 	}, 500); // 500ms Verzögerung für UI-Aktualisierung
 }
 
@@ -217,14 +216,14 @@ function getAllYears() {
  * Extrahiert Jahreszahl aus Gruppennamen mit Regex-Pattern
  *
  * Args:
- *   groupName (string): Name der Gruppe (z.B. "ABC23/001")
+ *   groupName (string): Name der Gruppe (z.B. "DI24/01")
  *
  * Returns:
  *   string|null: Extrahierte Jahreszahl oder null wenn kein Match
  */
 function extractYearFromGroupName(groupName) {
-	// Regex-Pattern: Großbuchstaben gefolgt von 2 Ziffern und Slash
-	const match = groupName.match(/[A-Z]+(\d{2})\/\d+/);
+	// Regex-Pattern für Format AA11/11: 2 Buchstaben gefolgt von 2 Ziffern und Slash
+	const match = groupName.match(/[A-Z]{2}(\d{2})\/\d{2}/);
 	return match ? match[1] : null;
 }
 
@@ -457,6 +456,9 @@ function groupSelectVerstecken() {
 }
 function anmeldenVerstecken() {
 	const anmeldenContainer = document.querySelector("#anmeldenContainer");
+	const groupSelectContainer = document.querySelector(
+		".group-select-container"
+	);
 	if (anmeldenContainer) {
 		anmeldenContainer.classList.remove("visible");
 	}
@@ -465,7 +467,18 @@ function anmeldenVerstecken() {
 	}
 }
 
+// Schutz vor mehrfacher Initialisierung
+let initializationComplete = false;
+
 document.addEventListener("DOMContentLoaded", () => {
+	if (initializationComplete) {
+		console.warn("Script bereits initialisiert - überspringe");
+		return;
+	}
+	initializationComplete = true;
+
+	console.log("Initialisiere Script einmalig...");
+
 	// Prüfe welche Seite geladen wurde basierend auf vorhandenen Elementen
 	const studSelectElement = document.querySelector("#stud-select");
 	const addGroupElement = document.querySelector(".add-group");
@@ -493,34 +506,17 @@ document.addEventListener("DOMContentLoaded", () => {
 			groupSelectVerstecken();
 			anmeldenVerstecken(); // Anmelde-Container auch auf Nachrichten-Seite verstecken
 
-			// Lade alle Gruppen im Hintergrund
+			// Lade alle Gruppen im Hintergrund - nur einmal beim Seitenstart
 			if (typeof ladeGruppen === "function") {
 				ladeGruppen()
 					.then(() => {
-						console.log(
-							"Gruppen geladen, Container bleiben versteckt bis zur Jahr-Auswahl"
-						);
+						console.log("Gruppen erfolgreich geladen");
 					})
 					.catch((error) => {
 						console.error("Fehler beim Laden der Gruppen:", error);
-						// Fallback: Zeige Container trotzdem an
-						groupSelectAnzeigen();
 					});
 			} else {
-				// Fallback wenn ladeGruppen noch nicht verfügbar ist
-				console.log("ladeGruppen noch nicht verfügbar - warte...");
-				setTimeout(() => {
-					if (typeof ladeGruppen === "function") {
-						ladeGruppen().then(() => {
-							groupSelectAnzeigen();
-						});
-					} else {
-						console.warn(
-							"ladeGruppen ist nicht verfügbar - zeige leeren Container"
-						);
-						groupSelectAnzeigen();
-					}
-				}, 100);
+				console.warn("ladeGruppen Funktion nicht verfügbar");
 			}
 
 			console.log("Nachichten-Seite: Alle Container werden angezeigt");
@@ -680,17 +676,40 @@ function stud() {
 	}
 }
 
-function sendJSON(jsonFile) {
+function sendJSON(jsonFile, group) {
 	const data = jsonFile;
+	console.log("Original Gruppenname:", group);
 
-	fetch("https://ntfy.sh/DI24120592", {
-		method: "POST",
-		headers: {
-			"Content-Type": "application/json",
-			Title: "Neue Nachricht",
-		},
-		body: data,
-	})
-		.then((res) => console.log("Gesendet:", res.status))
-		.catch((err) => console.error("Fehler:", err));
+	const match = group.match(/([A-Z]{2}\d{2})\/\d{2}/);
+
+	if (match) {
+		const extractedGroup = match[1];
+		console.log("Extrahierte Gruppe:", extractedGroup);
+		console.log("Neue Nachricht an Gruppe:", extractedGroup);
+
+		fetch(`https://ntfy.sh/${extractedGroup}120592`, {
+			method: "POST",
+			headers: {
+				"Content-Type": "application/json",
+				Title: "Neue Nachricht",
+			},
+			body: data,
+		})
+			.then((res) => console.log("Gesendet:", res.status))
+			.catch((err) => console.error("Fehler:", err));
+	} else {
+		console.error("Gruppenname entspricht nicht dem Format AA11/11:", group);
+		console.log("Verwende Fallback-Gruppe: DI24");
+
+		fetch(`https://ntfy.sh/DI24120592`, {
+			method: "POST",
+			headers: {
+				"Content-Type": "application/json",
+				Title: "Neue Nachricht",
+			},
+			body: data,
+		})
+			.then((res) => console.log("Gesendet:", res.status))
+			.catch((err) => console.error("Fehler:", err));
+	}
 }
