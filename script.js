@@ -224,6 +224,7 @@ function jahrgangAktualisieren(allYears) {
 
 function checkAuswahlYear() {
 	const yearSelect = document.getElementById("year-select");
+	const messageElement = document.querySelector("#message"); // Prüfe ob Nachrichten-Seite
 	const selectedYears = [];
 
 	// Falls Choices.js verwendet wird
@@ -238,15 +239,19 @@ function checkAuswahlYear() {
 		}
 	}
 
-	if (selectedYears.length > 0) {
-		// Zeige stud-select-container nach Jahr-Auswahl
-		studSelectAnzeigen();
-		// Verstecke group-select-container bis stud-select Auswahl getroffen wird
-		groupSelectVerstecken();
+	if (messageElement) {
+		// Nachrichten-Seite: Zeige stud-select nach Jahr-Auswahl
+		if (selectedYears.length > 0) {
+			studSelectAnzeigen();
+			console.log("Jahr ausgewählt: Studenten-Auswahl wird sichtbar");
+		} else {
+			// Verstecke beide Container wenn kein Jahr ausgewählt
+			studSelectVerstecken();
+			groupSelectVerstecken();
+		}
 	} else {
-		// Verstecke beide Container wenn kein Jahr ausgewählt
-		studSelectVerstecken();
-		groupSelectVerstecken();
+		// Index-Seite: Keine Jahr-Filter-Logik erforderlich
+		console.log("Index-Seite: Keine Jahr-Filter-Logik");
 	}
 }
 
@@ -269,6 +274,14 @@ function studSelectVerstecken() {
 
 function handleStudChange() {
 	const studSelect = document.getElementById("stud-select");
+	const messageElement = document.querySelector("#message"); // Prüfe ob Nachrichten-Seite
+
+	// Nur auf Nachrichten-Seite aktiv werden
+	if (!messageElement) {
+		console.log("Index-Seite: Keine Filter-Logik erforderlich");
+		return; // Früher Ausstieg für Index-Seite
+	}
+
 	const selectedStudTypes = [];
 
 	// Falls Choices.js verwendet wird
@@ -283,37 +296,74 @@ function handleStudChange() {
 		}
 	}
 
+	// Nachrichten-Seite: Zeige gefilterte Gruppen direkt basierend auf Art
 	if (selectedStudTypes.length > 0) {
-		// Zeige group-select-container nur wenn stud-select Auswahl getroffen wurde
-		const yearSelect = document.getElementById("year-select");
-		const selectedYears = [];
+		// Zeige Gruppen-Container und initialisiere Choices.js falls nötig
+		const groupSelectContainer = document.querySelector(
+			".group-select-container"
+		);
+		if (groupSelectContainer) {
+			groupSelectContainer.classList.add("visible");
 
-		if (window.yearChoicesInstance) {
-			const selectedValues = window.yearChoicesInstance.getValue();
-			selectedValues.forEach((item) => selectedYears.push(item.value));
+			// Initialisiere Choices.js für Gruppen falls noch nicht geschehen
+			if (typeof Choices !== "undefined" && !window.groupChoicesInstance) {
+				window.groupChoicesInstance = new Choices("#group-select", {
+					searchEnabled: true,
+					placeholderValue: "Gruppe wählen",
+					searchPlaceholderValue: "Suchen...",
+					removeItemButton: true,
+				});
+			}
 		}
 
-		groupSelectAnzeigen(selectedYears);
+		groupSelectAnzeigen([], selectedStudTypes); // Keine Jahr-Filter, nur Art-Filter
+		console.log(
+			"Studenten-Art ausgewählt: Gruppen-Auswahl wird sichtbar und gefiltert"
+		);
 	} else {
-		// Verstecke group-select-container wenn keine stud-select Auswahl
+		// Keine Auswahl: Verstecke Gruppen-Container und leere Liste
 		groupSelectVerstecken();
+		if (window.groupChoicesInstance) {
+			window.groupChoicesInstance.clearStore();
+		}
+		console.log("Keine Studenten-Art ausgewählt: Gruppen-Auswahl versteckt");
 	}
 }
-
-function groupSelectAnzeigen(selectedYears = []) {
+function groupSelectAnzeigen(selectedYears = [], selectedStudTypes = []) {
 	const groupSelectContainer = document.querySelector(
 		".group-select-container"
 	);
 	if (groupSelectContainer) {
 		groupSelectContainer.classList.add("visible");
 
-		// Filtere Gruppen nach ausgewählten Jahrgängen
+		// Filtere Gruppen nach ausgewählten Jahrgängen und Arten
 		let filteredGroups = Global.allGroups || [];
 
-		if (selectedYears.length > 0) {
+		if (selectedYears.length > 0 || selectedStudTypes.length > 0) {
 			filteredGroups = Global.allGroups.filter((group) => {
-				const year = extractYearFromGroupName(group.label);
-				return selectedYears.includes(year);
+				let yearMatch = true;
+				let typeMatch = true;
+
+				// Prüfe Jahr-Filter
+				if (selectedYears.length > 0) {
+					const year = extractYearFromGroupName(group.label);
+					yearMatch = selectedYears.includes(year);
+				}
+
+				// Prüfe Art-Filter (Studenten vs. Auszubildende)
+				if (selectedStudTypes.length > 0) {
+					// Mappe Frontend-Werte zu Datenbank-Werten
+					const dbArtValues = selectedStudTypes.map((studType) => {
+						if (studType === "studenten") return "1";
+						if (studType === "auszubildende") return "2";
+						return studType; // Fallback für direkte Zahlen
+					});
+
+					const groupArt = group.art ? group.art.toString() : "1";
+					typeMatch = dbArtValues.includes(groupArt);
+				}
+
+				return yearMatch && typeMatch;
 			});
 		}
 
@@ -352,24 +402,67 @@ function groupSelectVerstecken() {
 }
 
 document.addEventListener("DOMContentLoaded", () => {
-	// Initialisiere stud-select Choices.js
-	stud();
+	// Prüfe welche Seite geladen wurde basierend auf vorhandenen Elementen
+	const studSelectElement = document.querySelector("#stud-select");
+	const addGroupElement = document.querySelector(".add-group");
+	const messageElement = document.querySelector("#message"); // Nur auf Nachichten.html
 
-	// Initial alle Container verstecken (außer Jahr-Select)
-	studSelectVerstecken();
-	groupSelectVerstecken();
+	// Bestimme die aktuelle Seite
+	const isIndexPage = studSelectElement && !messageElement;
+	const isNachrichtenPage = studSelectElement && messageElement;
 
-	// Debug: Prüfe ob Container korrekt versteckt sind
-	const studContainer = document.querySelector(".stud-select-container");
-	const groupContainer = document.querySelector(".group-select-container");
-	console.log(
-		"Stud-Container Klassen:",
-		studContainer ? studContainer.className : "nicht gefunden"
-	);
-	console.log(
-		"Group-Container Klassen:",
-		groupContainer ? groupContainer.className : "nicht gefunden"
-	);
+	// Auf Seiten mit stud-select initialisieren
+	if (studSelectElement) {
+		if (isIndexPage) {
+			// Index.html: Keine Filterung benötigt - nur Info-Seite
+			console.log("Index-Seite: Keine Filter erforderlich");
+			// Verstecke alle Filter-Container auf der Index-Seite
+			studSelectVerstecken();
+			groupSelectVerstecken();
+		} else if (isNachrichtenPage) {
+			// Nachichten.html: Initialisiere Filterlogik für Nachrichten
+			console.log("Nachrichten-Seite: Initialisiere Filter");
+
+			// Initialisiere stud-select Choices.js für Filterung
+			stud();
+
+			// Initial beide Container verstecken - werden erst bei Jahr-Auswahl sichtbar
+			studSelectVerstecken();
+			groupSelectVerstecken();
+
+			// Lade alle Gruppen im Hintergrund
+			if (typeof ladeGruppen === "function") {
+				ladeGruppen()
+					.then(() => {
+						console.log(
+							"Gruppen geladen, Container bleiben versteckt bis zur Jahr-Auswahl"
+						);
+					})
+					.catch((error) => {
+						console.error("Fehler beim Laden der Gruppen:", error);
+						// Fallback: Zeige Container trotzdem an
+						groupSelectAnzeigen();
+					});
+			} else {
+				// Fallback wenn ladeGruppen noch nicht verfügbar ist
+				console.log("ladeGruppen noch nicht verfügbar - warte...");
+				setTimeout(() => {
+					if (typeof ladeGruppen === "function") {
+						ladeGruppen().then(() => {
+							groupSelectAnzeigen();
+						});
+					} else {
+						console.warn(
+							"ladeGruppen ist nicht verfügbar - zeige leeren Container"
+						);
+						groupSelectAnzeigen();
+					}
+				}, 100);
+			}
+
+			console.log("Nachichten-Seite: Alle Container werden angezeigt");
+		}
+	}
 
 	const sendToAllCheckbox = document.querySelector("#sendToAll");
 	if (sendToAllCheckbox) {
@@ -433,6 +526,15 @@ function handleEnterOnPage(page) {
 }
 function stud() {
 	const studSelectContainer = document.querySelector(".stud-select-container");
+	const studSelectElement = document.querySelector("#stud-select");
+
+	if (!studSelectElement) {
+		console.log(
+			"stud-select Element nicht gefunden - überspringe Initialisierung"
+		);
+		return;
+	}
+
 	if (typeof Choices !== "undefined" && !window.studChoicesInstance) {
 		window.studChoicesInstance = new Choices("#stud-select", {
 			searchEnabled: true,

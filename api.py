@@ -46,6 +46,7 @@ class Group(db.Model):
     __tablename__ = 'Gruppen'  # Tabellenname in der Datenbank
     id = db.Column(db.Integer, primary_key=True)    # Eindeutige ID (Auto-Increment)
     name = db.Column(db.String(100), nullable=False)  # Gruppenname (max. 100 Zeichen)
+    art = db.Column(db.Integer, nullable=False)    # Art der Gruppe (z.B. "studenten", "auszubildende")
 
 # OPTIONS-Route für CORS Preflight-Requests
 @app.route('/groups', methods=['OPTIONS'])
@@ -74,7 +75,8 @@ def get_groups():
         for group in groups:
             groups_list.append({
                 'id': group.id,
-                'name': group.name
+                'name': group.name,
+                'art': group.art
             })
         return jsonify({'success': True, 'groups': groups_list})
     
@@ -88,25 +90,31 @@ def add_group():
     """
     Fügt eine neue Gruppe zur Datenbank hinzu.
     
-    Expected JSON: {'name': 'Gruppenname'}
+    Expected JSON: {'name': 'Gruppenname', 'art': 1}
     
     Returns:
         JSON: {'success': True, 'message': 'Gruppe hinzugefügt'} oder Fehlermeldung
     """
     try:
-        # Gruppenname aus JSON-Request extrahieren
-        name = request.json.get('name')  # JSON Format: {"name": "Gruppenname"}
+        # Gruppenname und Art aus JSON-Request extrahieren
+        name = request.json.get('name')  # JSON Format: {"name": "Gruppenname", "art": 1}
+        art = request.json.get('art', 1)  # Default: 1 (Studenten)
         
         # Validierung: Name darf nicht leer sein
         if not name:
             return jsonify({'success': False, 'message': 'Name ist erforderlich'}), 400
         
+        # Validierung: Art muss 1 oder 2 sein
+        if art not in [1, 2]:
+            return jsonify({'success': False, 'message': 'Art muss 1 (Studenten) oder 2 (Auszubildende) sein'}), 400
+        
         # Neue Gruppe erstellen und in Datenbank speichern
-        new_group = Group(name=name)
+        new_group = Group(name=name, art=art)
         db.session.add(new_group)
         db.session.commit()
         
-        logger.info(f"Neue Gruppe hinzugefügt: {name}")
+        art_text = "Studenten" if art == 1 else "Auszubildende"
+        logger.info(f"Neue Gruppe hinzugefügt: {name} ({art_text})")
         return jsonify({'success': True, 'message': 'Gruppe hinzugefügt'})
         
     except Exception as e:

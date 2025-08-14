@@ -36,43 +36,51 @@ let isDeletingInProgress = false;
 function ladeGruppen() {
 	// Verhindert Laden während Löschoperationen
 	if (isDeletingInProgress) {
-		return;
+		return Promise.resolve(); // Gebe ein aufgelöstes Promise zurück
 	}
 
 	// API-Anfrage an Flask-Backend
-	fetch(url)
+	return fetch(url)
 		.then((res) => res.json())
 		.then((data) => {
-			// Konvertierung in Choices.js Format: {value: id, label: name}
-			const choicesArray = data.groups.map((group) => ({
-				value: group.id,
-				label: group.name,
-			}));
-			Global.allGroups = choicesArray;
+			if (data.success && data.groups) {
+				// Konvertierung in Choices.js Format: {value: id, label: name, art: art}
+				const choicesArray = data.groups.map((group) => ({
+					value: group.id,
+					label: group.name,
+					art: group.art, // 1 = Studenten, 2 = Auszubildende
+				}));
+				Global.allGroups = choicesArray;
 
-			// Aktualisiere nur group-select Choices falls bereits initialisiert
-			if (window.groupChoicesInstance) {
-				window.groupChoicesInstance.setChoices(
-					choicesArray,
-					"value",
-					"label",
-					true // Clear existing choices before setting new ones
+				// Aktualisiere nur group-select Choices falls bereits initialisiert
+				if (window.groupChoicesInstance) {
+					window.groupChoicesInstance.setChoices(
+						choicesArray,
+						"value",
+						"label",
+						true // Clear existing choices before setting new onespo
+					);
+				}
+
+				// Aktualisiere group-select-loeschen Choices falls vorhanden (Löschseite)
+				if (window.groupChoicesLoeschenInstance && !isDeletingInProgress) {
+					window.groupChoicesLoeschenInstance.setChoices(
+						choicesArray,
+						"value",
+						"label",
+						true // Clear existing choices before setting new ones
+					);
+				}
+
+				// Führe getAllYears aus, nachdem die Gruppen geladen wurden (für Jahr-Filter)
+				if (typeof getAllYears === "function" && !isDeletingInProgress) {
+					getAllYears();
+				}
+			} else {
+				console.error(
+					"API Response Error:",
+					data.message || "Unbekannter Fehler"
 				);
-			}
-
-			// Aktualisiere group-select-loeschen Choices falls vorhanden (Löschseite)
-			if (window.groupChoicesLoeschenInstance && !isDeletingInProgress) {
-				window.groupChoicesLoeschenInstance.setChoices(
-					choicesArray,
-					"value",
-					"label",
-					true // Clear existing choices before setting new ones
-				);
-			}
-
-			// Führe getAllYears aus, nachdem die Gruppen geladen wurden (für Jahr-Filter)
-			if (typeof getAllYears === "function" && !isDeletingInProgress) {
-				getAllYears();
 			}
 		})
 		.catch((error) => {
@@ -117,6 +125,7 @@ document.addEventListener("DOMContentLoaded", function () {
  *
  * Funktionsweise:
  * - Liest Gruppennamen aus Input-Feld
+ * - Extrahiert automatisch die Art basierend auf dem zweiten Buchstaben
  * - Sendet POST-Request an Flask-API
  * - Aktualisiert UI bei erfolgreichem Hinzufügen
  * - Zeigt Benutzer-Feedback an
@@ -126,17 +135,26 @@ function hinzufuegen() {
 	const gruppenname = document.querySelector(".add-group input").value;
 
 	if (gruppenname) {
+		// Art automatisch bestimmen basierend auf dem zweiten Buchstaben
+		const art = extractArtFromGroupName(gruppenname);
+
 		// POST-Request an Flask-API senden
 		fetch(url, {
 			method: "POST",
 			headers: {
 				"Content-Type": "application/json",
 			},
-			body: JSON.stringify({ name: gruppenname }), // JSON-Format für Flask-API
+			body: JSON.stringify({
+				name: gruppenname,
+				art: art, // 1 = Studenten, 2 = Auszubildende
+			}), // JSON-Format für Flask-API
 		})
-			.then((response) => {
-				if (response.ok) {
-					console.log("Neue Gruppe hinzugefügt:", gruppenname);
+			.then((response) => response.json())
+			.then((data) => {
+				if (data.success) {
+					const artText = art === 1 ? "Studenten" : "Auszubildende";
+					console.log(`Neue Gruppe hinzugefügt: ${gruppenname} (${artText})`);
+					alert(`Gruppe erfolgreich hinzugefügt: ${gruppenname} (${artText})`);
 
 					// Input-Feld zurücksetzen
 					document.querySelector(".add-group input").value = "";
@@ -144,8 +162,8 @@ function hinzufuegen() {
 					// Gruppenliste neu laden für aktuelle UI-Updates
 					ladeGruppen();
 				} else {
-					console.error("Fehler beim Hinzufügen der Gruppe");
-					alert("Fehler beim Hinzufügen der Gruppe. Bitte versuche es erneut.");
+					console.error("Fehler beim Hinzufügen der Gruppe:", data.message);
+					alert(`Fehler beim Hinzufügen der Gruppe: ${data.message}`);
 				}
 			})
 			.catch((error) => {
@@ -159,6 +177,20 @@ function hinzufuegen() {
 	}
 }
 
+/**
+ * Extrahiert die Art der Gruppe basierend auf dem zweiten Buchstaben
+ *
+ * @param {string} groupName - Der Gruppenname (z.B. "DI24/01", "FS24/42")
+ * @returns {number} - 1 für Studenten (I), 2 für Auszubildende (S)
+ */
+function extractArtFromGroupName(groupName) {
+	if (groupName && groupName.length >= 2) {
+		const secondLetter = groupName.charAt(1).toUpperCase();
+		// S = Auszubildende, alles andere = Studenten (hauptsächlich I)
+		return secondLetter === "S" ? 2 : 1;
+	}
+	return 1; // Default: Studenten
+}
 /**
  * Löscht ausgewählte Gruppen sequenziell
  *
