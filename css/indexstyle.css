@@ -300,3 +300,42 @@ input {
 	border-radius: 8px;
 	border-left: 4px solid #007bff;
 }
+
+button#anmelden:hover {
+	transform: scale(1.05);
+	transition: all 0.3s ease;
+}
+/* anmelde Container */
+#anmeldenContainer {
+	display: flex; /* Standardmäßig ausgeblendet */
+	position: fixed;
+	top: 50%;
+	left: 50%;
+	transform: translate(-50%, -50%);
+	background-color: white;
+	padding: 20px;
+	box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+	z-index: 1000;
+}
+
+#anmeldenContainer form {
+	position: relative;
+	background-color: #fff;
+	padding: 30px;
+	border-radius: 8px;
+	box-shadow: 0 0 20px rgba(0, 0, 0, 0.2);
+	width: 100%;
+	max-width: 400px;
+	margin: 0 auto;
+}
+
+/* Eingabefelder im Anmeldeformular stylen */
+#anmeldenContainer input[type="text"],
+#anmeldenContainer input[type="password"] {
+	width: 100%;
+	padding: 10px;
+	margin-bottom: 15px;
+	border: 1px solid #ddd;
+	border-radius: 4px;
+	box-sizing: border-box;
+}

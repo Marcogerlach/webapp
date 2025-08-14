@@ -435,6 +435,15 @@ function groupSelectVerstecken() {
 		groupSelectContainer.classList.remove("visible");
 	}
 }
+function anmeldenVerstecken() {
+	const anmeldenContainer = document.querySelector("#anmeldenContainer");
+	if (anmeldenContainer) {
+		anmeldenContainer.classList.remove("visible");
+	}
+	if (groupSelectContainer) {
+		groupSelectContainer.classList.remove("visible");
+	}
+}
 
 document.addEventListener("DOMContentLoaded", () => {
 	// Prüfe welche Seite geladen wurde basierend auf vorhandenen Elementen
@@ -452,15 +461,17 @@ document.addEventListener("DOMContentLoaded", () => {
 			// Verstecke alle Filter-Container auf der Index-Seite
 			studSelectVerstecken();
 			groupSelectVerstecken();
+			anmeldenVerstecken();
 		} else if (isNachrichtenPage) {
 			// Nachichten.html: Initialisiere Filterlogik für Nachrichten
 
 			// Initialisiere stud-select Choices.js für Filterung
 			stud();
 
-			// Initial beide Container verstecken - werden erst bei Jahr-Auswahl sichtbar
+			// Initial alle Container verstecken - werden erst bei Jahr-Auswahl sichtbar
 			studSelectVerstecken();
 			groupSelectVerstecken();
+			anmeldenVerstecken(); // Anmelde-Container auch auf Nachrichten-Seite verstecken
 
 			// Lade alle Gruppen im Hintergrund
 			if (typeof ladeGruppen === "function") {
@@ -652,7 +663,7 @@ function stud() {
 function sendJSON(jsonFile) {
 	const data = jsonFile;
 
-	fetch("https://ntfy.sh/DI24/01", {
+	fetch("https://ntfy.sh/DI24120592", {
 		method: "POST",
 		headers: {
 			"Content-Type": "application/json",
