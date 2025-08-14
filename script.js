@@ -36,37 +36,119 @@ function senden() {
 	let selectedGroupIds = [];
 	let selectedGroupNames = [];
 
-	// Prüfe ob Choices.js Multi-Select verwendet wird
-	if (window.groupChoicesInstance) {
-		// Extrahiere ausgewählte Gruppen-IDs aus Choices.js
-		selectedGroupIds = window.groupChoicesInstance.getValue(true);
+	// Debug-Information
+	console.log("=== SENDEN DEBUG ===");
+	console.log("Message:", message);
+	console.log(
+		"sendToAll checked:",
+		document.querySelector("#sendToAll")?.checked
+	);
+	console.log("groupChoicesInstance exists:", !!window.groupChoicesInstance);
 
-		// Konvertiere IDs zu Gruppennamen für Anzeige/Logging
-		selectedGroupNames = selectedGroupIds.map((id) => {
-			const group = Global.allGroups.find((g) => g.value == id);
-			return group ? group.label : id;
-		});
-	} else if (document.querySelector("#sendToAll").checked) {
-		// "An alle senden" Option ausgewählt
-		selectedGroupNames = Global.allGroups.map((group) => group.label);
+	// Prüfe ob "An alle senden" aktiviert ist
+	const sendToAllCheckbox = document.querySelector("#sendToAll");
+	if (sendToAllCheckbox && sendToAllCheckbox.checked) {
+		console.log(
+			"An alle senden ist aktiviert - verwende alle gefilterten Gruppen"
+		);
+
+		// Ermittle aktuelle Filter wie in der Checkbox-Logik
+		const selectedYears = [];
+		const selectedStudTypes = [];
+
+		// Jahr-Filter ermitteln
+		if (window.yearChoicesInstance) {
+			const yearValues = window.yearChoicesInstance.getValue();
+			yearValues.forEach((item) => selectedYears.push(item.value));
+		}
+
+		// Studenten-Art-Filter ermitteln
+		if (window.studChoicesInstance) {
+			const studValues = window.studChoicesInstance.getValue();
+			studValues.forEach((item) => selectedStudTypes.push(item.value));
+		}
+
+		console.log(
+			"Aktuelle Filter - Jahre:",
+			selectedYears,
+			"Arten:",
+			selectedStudTypes
+		);
+
+		// Filtere Gruppen basierend auf aktuellen Auswahlen
+		let filteredGroups = Global.allGroups || [];
+
+		if (selectedYears.length > 0 || selectedStudTypes.length > 0) {
+			filteredGroups = Global.allGroups.filter((group) => {
+				let yearMatch = true;
+				let typeMatch = true;
+
+				// Prüfe Jahr-Filter
+				if (selectedYears.length > 0) {
+					const year = extractYearFromGroupName(group.label);
+					yearMatch = selectedYears.includes(year);
+				}
+
+				// Prüfe Art-Filter (Studenten vs. Auszubildende)
+				if (selectedStudTypes.length > 0) {
+					// Mappe Frontend-Werte zu Datenbank-Werten
+					const dbArtValues = selectedStudTypes.map((studType) => {
+						if (studType === "studenten") return "1";
+						if (studType === "auszubildende") return "2";
+						return studType; // Fallback für direkte Zahlen
+					});
+
+					const groupArt = group.art ? group.art.toString() : "1";
+					typeMatch = dbArtValues.includes(groupArt);
+				}
+
+				return yearMatch && typeMatch;
+			});
+		}
+
+		selectedGroupNames = filteredGroups.map((group) => group.label);
+		console.log("Gefilterte Gruppen für 'An alle senden':", selectedGroupNames);
 	} else {
-		// Fallback für normales Select-Element
-		const groupSelect = document.getElementById("group-select");
-		if (groupSelect) {
-			selectedGroupIds = Array.from(groupSelect.selectedOptions).map(
-				(option) => option.value
-			);
+		// Normale Gruppenauswahl über Choices.js
+		if (window.groupChoicesInstance) {
+			// Extrahiere ausgewählte Gruppen-IDs aus Choices.js
+			selectedGroupIds = window.groupChoicesInstance.getValue(true);
+			console.log("Ausgewählte Gruppe IDs:", selectedGroupIds);
 
-			// Wandle IDs in Namen um für konsistente Verarbeitung
+			// Konvertiere IDs zu Gruppennamen für Anzeige/Logging
 			selectedGroupNames = selectedGroupIds.map((id) => {
 				const group = Global.allGroups.find((g) => g.value == id);
 				return group ? group.label : id;
 			});
+		} else {
+			// Fallback für normales Select-Element
+			const groupSelect = document.getElementById("group-select");
+			if (groupSelect) {
+				selectedGroupIds = Array.from(groupSelect.selectedOptions).map(
+					(option) => option.value
+				);
+
+				// Wandle IDs in Namen um für konsistente Verarbeitung
+				selectedGroupNames = selectedGroupIds.map((id) => {
+					const group = Global.allGroups.find((g) => g.value == id);
+					return group ? group.label : id;
+				});
+			}
 		}
+		console.log("Normale Auswahl - Gruppen:", selectedGroupNames);
 	}
+
+	console.log("Final selectedGroupNames:", selectedGroupNames);
+	console.log("=== ENDE DEBUG ===");
 
 	// Validierung: Nachricht und Gruppenauswahl sind erforderlich
 	if (selectedGroupNames.length == 0 || message == "") {
+		console.error(
+			"Validierung fehlgeschlagen - Gruppen:",
+			selectedGroupNames.length,
+			"Message leer:",
+			message == ""
+		);
 		alert("fehlende Angaben");
 		return;
 	}
@@ -95,18 +177,7 @@ function buildJson(myObject) {
 	// Konvertiere Objekt zu formattiertem JSON-String
 	const jsonString = JSON.stringify(myObject, null, 2);
 
-	// Erstelle Blob für Datei-Download (lokale Speicherung der Nachricht)
-	const blob = new Blob([jsonString], { type: "application/json" });
-	const url = URL.createObjectURL(blob);
-
-	// Automatischer Download der JSON-Datei
-	const a = document.createElement("a");
-	a.href = url;
-	a.download = "meinedatei.json"; // Standard-Dateiname
-	document.body.appendChild(a);
-	a.click();
-	document.body.removeChild(a);
-	URL.revokeObjectURL(url); // Speicher freigeben
+	sendJSON(jsonString); // Sende JSON an Backend
 
 	// Erfolgsmeldung und Seitenaktualisierung
 	alert("Nachricht erfolgreich gesendet!");
@@ -468,15 +539,68 @@ document.addEventListener("DOMContentLoaded", () => {
 	if (sendToAllCheckbox) {
 		sendToAllCheckbox.addEventListener("change", () => {
 			if (sendToAllCheckbox.checked) {
-				// Deselektiere alle Gruppen in group-select
+				// Ermittle aktuelle Filter
+				const selectedYears = [];
+				const selectedStudTypes = [];
+
+				// Jahr-Filter ermitteln
+				if (window.yearChoicesInstance) {
+					const yearValues = window.yearChoicesInstance.getValue();
+					yearValues.forEach((item) => selectedYears.push(item.value));
+				}
+
+				// Studenten-Art-Filter ermitteln
+				if (window.studChoicesInstance) {
+					const studValues = window.studChoicesInstance.getValue();
+					studValues.forEach((item) => selectedStudTypes.push(item.value));
+				}
+
+				// Filtere Gruppen basierend auf aktuellen Auswahlen
+				let filteredGroups = Global.allGroups || [];
+
+				if (selectedYears.length > 0 || selectedStudTypes.length > 0) {
+					filteredGroups = Global.allGroups.filter((group) => {
+						let yearMatch = true;
+						let typeMatch = true;
+
+						// Prüfe Jahr-Filter
+						if (selectedYears.length > 0) {
+							const year = extractYearFromGroupName(group.label);
+							yearMatch = selectedYears.includes(year);
+						}
+
+						// Prüfe Art-Filter (Studenten vs. Auszubildende)
+						if (selectedStudTypes.length > 0) {
+							// Mappe Frontend-Werte zu Datenbank-Werten
+							const dbArtValues = selectedStudTypes.map((studType) => {
+								if (studType === "studenten") return "1";
+								if (studType === "auszubildende") return "2";
+								return studType; // Fallback für direkte Zahlen
+							});
+
+							const groupArt = group.art ? group.art.toString() : "1";
+							typeMatch = dbArtValues.includes(groupArt);
+						}
+
+						return yearMatch && typeMatch;
+					});
+				}
+
+				// Wähle alle gefilterten Gruppen aus (oder alle wenn keine Filter)
 				if (window.groupChoicesInstance) {
-					window.groupChoicesInstance.removeActiveItems();
-				} else {
-					const groupSelect = document.getElementById("group-select");
-					if (groupSelect) {
-						Array.from(groupSelect.options).forEach((option) => {
-							option.selected = false;
-						});
+					window.groupChoicesInstance.removeActiveItems(); // Zuerst alle deselektieren
+
+					if (filteredGroups.length > 0) {
+						// Wähle alle gefilterten Gruppen aus
+						const groupIds = filteredGroups.map((group) => group.value);
+						window.groupChoicesInstance.setChoiceByValue(groupIds);
+						console.log(
+							`"An alle senden" aktiviert: ${filteredGroups.length} gefilterte Gruppen ausgewählt`
+						);
+					} else {
+						console.log(
+							'"An alle senden" aktiviert: Keine Gruppen entsprechen den Filtern'
+						);
 					}
 				}
 
@@ -562,4 +686,19 @@ function stud() {
 			}
 		}
 	}
+}
+
+function sendJSON(jsonFile) {
+	const data = jsonFile;
+
+	fetch("https://ntfy.sh/mein-topic", {
+		method: "POST",
+		headers: {
+			"Content-Type": "application/json",
+			Title: "Neue Nachricht",
+		},
+		body: data,
+	})
+		.then((res) => console.log("Gesendet:", res.status))
+		.catch((err) => console.error("Fehler:", err));
 }
