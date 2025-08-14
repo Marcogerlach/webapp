@@ -652,7 +652,7 @@ function stud() {
 function sendJSON(jsonFile) {
 	const data = jsonFile;
 
-	fetch("https://ntfy.sh/mein-topic", {
+	fetch("https://ntfy.sh/DI24/01", {
 		method: "POST",
 		headers: {
 			"Content-Type": "application/json",
