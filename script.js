@@ -151,8 +151,9 @@ function senden() {
 function buildJson(myObject, selectedGroupNames) {
 	// Konvertiere Objekt zu formattiertem JSON-String
 	const jsonString = JSON.stringify(myObject, null, 2);
-
-	sendJSON(jsonString, selectedGroupNames[0] || "DI24"); // Sende JSON an Backend mit erster Gruppe als Fallback
+	selectedGroupNames.forEach((groupName) => {
+		sendJSON(jsonString, groupName);
+	});
 
 	// Erfolgsmeldung und Seitenaktualisierung
 	alert("Nachricht erfolgreich gesendet!");
