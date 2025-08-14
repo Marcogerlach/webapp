@@ -287,6 +287,18 @@ function checkAuswahlYear() {
 		// Nachrichten-Seite: Zeige stud-select nach Jahr-Auswahl
 		if (selectedYears.length > 0) {
 			studSelectAnzeigen();
+
+			// Falls bereits Studententypen ausgewählt sind, aktualisiere auch die Gruppenauswahl
+			const selectedStudTypes = [];
+			if (window.studChoicesInstance) {
+				const studValues = window.studChoicesInstance.getValue();
+				studValues.forEach((item) => selectedStudTypes.push(item.value));
+			}
+
+			// Wenn sowohl Jahre als auch Studententypen ausgewählt sind, zeige gefilterte Gruppen
+			if (selectedStudTypes.length > 0) {
+				groupSelectAnzeigen(selectedYears, selectedStudTypes);
+			}
 		} else {
 			// Verstecke beide Container wenn kein Jahr ausgewählt
 			studSelectVerstecken();
@@ -335,8 +347,15 @@ function handleStudChange() {
 		}
 	}
 
-	// Nachrichten-Seite: Zeige gefilterte Gruppen direkt basierend auf Art
+	// Nachrichten-Seite: Zeige gefilterte Gruppen basierend auf Art UND Jahr
 	if (selectedStudTypes.length > 0) {
+		// Ermittle auch die aktuell ausgewählten Jahre
+		const selectedYears = [];
+		if (window.yearChoicesInstance) {
+			const yearValues = window.yearChoicesInstance.getValue();
+			yearValues.forEach((item) => selectedYears.push(item.value));
+		}
+
 		// Zeige Gruppen-Container und initialisiere Choices.js falls nötig
 		const groupSelectContainer = document.querySelector(
 			".group-select-container"
@@ -355,7 +374,8 @@ function handleStudChange() {
 			}
 		}
 
-		groupSelectAnzeigen([], selectedStudTypes); // Keine Jahr-Filter, nur Art-Filter
+		// Berücksichtige SOWOHL Jahr- ALS AUCH Art-Filter
+		groupSelectAnzeigen(selectedYears, selectedStudTypes);
 	} else {
 		// Keine Auswahl: Verstecke Gruppen-Container und leere Liste
 		groupSelectVerstecken();
