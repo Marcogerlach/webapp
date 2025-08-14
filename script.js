@@ -36,22 +36,9 @@ function senden() {
 	let selectedGroupIds = [];
 	let selectedGroupNames = [];
 
-	// Debug-Information
-	console.log("=== SENDEN DEBUG ===");
-	console.log("Message:", message);
-	console.log(
-		"sendToAll checked:",
-		document.querySelector("#sendToAll")?.checked
-	);
-	console.log("groupChoicesInstance exists:", !!window.groupChoicesInstance);
-
 	// Prüfe ob "An alle senden" aktiviert ist
 	const sendToAllCheckbox = document.querySelector("#sendToAll");
 	if (sendToAllCheckbox && sendToAllCheckbox.checked) {
-		console.log(
-			"An alle senden ist aktiviert - verwende alle gefilterten Gruppen"
-		);
-
 		// Ermittle aktuelle Filter wie in der Checkbox-Logik
 		const selectedYears = [];
 		const selectedStudTypes = [];
@@ -67,13 +54,6 @@ function senden() {
 			const studValues = window.studChoicesInstance.getValue();
 			studValues.forEach((item) => selectedStudTypes.push(item.value));
 		}
-
-		console.log(
-			"Aktuelle Filter - Jahre:",
-			selectedYears,
-			"Arten:",
-			selectedStudTypes
-		);
 
 		// Filtere Gruppen basierend auf aktuellen Auswahlen
 		let filteredGroups = Global.allGroups || [];
@@ -107,13 +87,11 @@ function senden() {
 		}
 
 		selectedGroupNames = filteredGroups.map((group) => group.label);
-		console.log("Gefilterte Gruppen für 'An alle senden':", selectedGroupNames);
 	} else {
 		// Normale Gruppenauswahl über Choices.js
 		if (window.groupChoicesInstance) {
 			// Extrahiere ausgewählte Gruppen-IDs aus Choices.js
 			selectedGroupIds = window.groupChoicesInstance.getValue(true);
-			console.log("Ausgewählte Gruppe IDs:", selectedGroupIds);
 
 			// Konvertiere IDs zu Gruppennamen für Anzeige/Logging
 			selectedGroupNames = selectedGroupIds.map((id) => {
@@ -135,11 +113,7 @@ function senden() {
 				});
 			}
 		}
-		console.log("Normale Auswahl - Gruppen:", selectedGroupNames);
 	}
-
-	console.log("Final selectedGroupNames:", selectedGroupNames);
-	console.log("=== ENDE DEBUG ===");
 
 	// Validierung: Nachricht und Gruppenauswahl sind erforderlich
 	if (selectedGroupNames.length == 0 || message == "") {
@@ -236,7 +210,6 @@ function getAllYears() {
 			}
 		}
 	});
-	console.log("Jahre extrahiert:", allYears);
 	jahrgangAktualisieren(allYears); // Aktualisiere UI mit extrahierten Jahren
 }
 
@@ -314,15 +287,11 @@ function checkAuswahlYear() {
 		// Nachrichten-Seite: Zeige stud-select nach Jahr-Auswahl
 		if (selectedYears.length > 0) {
 			studSelectAnzeigen();
-			console.log("Jahr ausgewählt: Studenten-Auswahl wird sichtbar");
 		} else {
 			// Verstecke beide Container wenn kein Jahr ausgewählt
 			studSelectVerstecken();
 			groupSelectVerstecken();
 		}
-	} else {
-		// Index-Seite: Keine Jahr-Filter-Logik erforderlich
-		console.log("Index-Seite: Keine Jahr-Filter-Logik");
 	}
 }
 
@@ -349,7 +318,6 @@ function handleStudChange() {
 
 	// Nur auf Nachrichten-Seite aktiv werden
 	if (!messageElement) {
-		console.log("Index-Seite: Keine Filter-Logik erforderlich");
 		return; // Früher Ausstieg für Index-Seite
 	}
 
@@ -388,16 +356,12 @@ function handleStudChange() {
 		}
 
 		groupSelectAnzeigen([], selectedStudTypes); // Keine Jahr-Filter, nur Art-Filter
-		console.log(
-			"Studenten-Art ausgewählt: Gruppen-Auswahl wird sichtbar und gefiltert"
-		);
 	} else {
 		// Keine Auswahl: Verstecke Gruppen-Container und leere Liste
 		groupSelectVerstecken();
 		if (window.groupChoicesInstance) {
 			window.groupChoicesInstance.clearStore();
 		}
-		console.log("Keine Studenten-Art ausgewählt: Gruppen-Auswahl versteckt");
 	}
 }
 function groupSelectAnzeigen(selectedYears = [], selectedStudTypes = []) {
@@ -485,14 +449,11 @@ document.addEventListener("DOMContentLoaded", () => {
 	// Auf Seiten mit stud-select initialisieren
 	if (studSelectElement) {
 		if (isIndexPage) {
-			// Index.html: Keine Filterung benötigt - nur Info-Seite
-			console.log("Index-Seite: Keine Filter erforderlich");
 			// Verstecke alle Filter-Container auf der Index-Seite
 			studSelectVerstecken();
 			groupSelectVerstecken();
 		} else if (isNachrichtenPage) {
 			// Nachichten.html: Initialisiere Filterlogik für Nachrichten
-			console.log("Nachrichten-Seite: Initialisiere Filter");
 
 			// Initialisiere stud-select Choices.js für Filterung
 			stud();
