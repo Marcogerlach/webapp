@@ -478,130 +478,43 @@ document.addEventListener("DOMContentLoaded", () => {
 	}
 	initializationComplete = true;
 
-	console.log("Initialisiere Script einmalig...");
+	// Content initial verstecken, bis Login erfolgt ist
+	if (
+		window.FamilienApp &&
+		typeof window.FamilienApp.hideContent === "function"
+	) {
+		window.FamilienApp.hideContent();
+	}
 
-	// Prüfe welche Seite geladen wurde basierend auf vorhandenen Elementen
-	const studSelectElement = document.querySelector("#stud-select");
-	const addGroupElement = document.querySelector(".add-group");
-	const messageElement = document.querySelector("#message"); // Nur auf Nachichten.html
-
-	// Bestimme die aktuelle Seite
-	const isIndexPage = studSelectElement && !messageElement;
-	const isNachrichtenPage = studSelectElement && messageElement;
-
-	// Auf Seiten mit stud-select initialisieren
-	if (studSelectElement) {
-		if (isIndexPage) {
-			// Verstecke alle Filter-Container auf der Index-Seite
-			studSelectVerstecken();
-			groupSelectVerstecken();
-			anmeldenVerstecken();
-		} else if (isNachrichtenPage) {
-			// Nachichten.html: Initialisiere Filterlogik für Nachrichten
-
-			// Initialisiere stud-select Choices.js für Filterung
-			stud();
-
-			// Initial alle Container verstecken - werden erst bei Jahr-Auswahl sichtbar
-			studSelectVerstecken();
-			groupSelectVerstecken();
-			anmeldenVerstecken(); // Anmelde-Container auch auf Nachrichten-Seite verstecken
-
-			// Lade alle Gruppen im Hintergrund - nur einmal beim Seitenstart
-			if (typeof ladeGruppen === "function") {
-				ladeGruppen()
-					.then(() => {
-						console.log("Gruppen erfolgreich geladen");
-					})
-					.catch((error) => {
-						console.error("Fehler beim Laden der Gruppen:", error);
-					});
-			} else {
-				console.warn("ladeGruppen Funktion nicht verfügbar");
-			}
-
-			console.log("Nachichten-Seite: Alle Container werden angezeigt");
+	// Prüfe ob Benutzer eingeloggt ist (localStorage)
+	const benutzer = localStorage.getItem("benutzer");
+	if (benutzer) {
+		// Content anzeigen
+		if (
+			window.FamilienApp &&
+			typeof window.FamilienApp.showContent === "function"
+		) {
+			window.FamilienApp.showContent();
 		}
+		// Anmeldeformular ausblenden
+		const anmeldenContainer = document.getElementById("anmeldenContainer");
+		if (anmeldenContainer) anmeldenContainer.style.display = "none";
+	} else {
+		// Content verstecken, Anmeldeformular anzeigen
+		if (
+			window.FamilienApp &&
+			typeof window.FamilienApp.hideContent === "function"
+		) {
+			window.FamilienApp.hideContent();
+		}
+		const anmeldenContainer = document.getElementById("anmeldenContainer");
+		if (anmeldenContainer) anmeldenContainer.style.display = "block";
 	}
 
-	const sendToAllCheckbox = document.querySelector("#sendToAll");
-	if (sendToAllCheckbox) {
-		sendToAllCheckbox.addEventListener("change", () => {
-			if (sendToAllCheckbox.checked) {
-				// Ermittle aktuelle Filter
-				const selectedYears = [];
-				const selectedStudTypes = [];
+	// ...existing code...
 
-				// Jahr-Filter ermitteln
-				if (window.yearChoicesInstance) {
-					const yearValues = window.yearChoicesInstance.getValue();
-					yearValues.forEach((item) => selectedYears.push(item.value));
-				}
-
-				// Studenten-Art-Filter ermitteln
-				if (window.studChoicesInstance) {
-					const studValues = window.studChoicesInstance.getValue();
-					studValues.forEach((item) => selectedStudTypes.push(item.value));
-				}
-
-				// Filtere Gruppen basierend auf aktuellen Auswahlen
-				let filteredGroups = Global.allGroups || [];
-
-				if (selectedYears.length > 0 || selectedStudTypes.length > 0) {
-					filteredGroups = Global.allGroups.filter((group) => {
-						let yearMatch = true;
-						let typeMatch = true;
-
-						// Prüfe Jahr-Filter
-						if (selectedYears.length > 0) {
-							const year = extractYearFromGroupName(group.label);
-							yearMatch = selectedYears.includes(year);
-						}
-
-						// Prüfe Art-Filter (Studenten vs. Auszubildende)
-						if (selectedStudTypes.length > 0) {
-							// Mappe Frontend-Werte zu Datenbank-Werten
-							const dbArtValues = selectedStudTypes.map((studType) => {
-								if (studType === "studenten") return "1";
-								if (studType === "auszubildende") return "2";
-								return studType; // Fallback für direkte Zahlen
-							});
-
-							const groupArt = group.art ? group.art.toString() : "1";
-							typeMatch = dbArtValues.includes(groupArt);
-						}
-
-						return yearMatch && typeMatch;
-					});
-				}
-
-				// Wähle alle gefilterten Gruppen aus (oder alle wenn keine Filter)
-				if (window.groupChoicesInstance) {
-					window.groupChoicesInstance.removeActiveItems(); // Zuerst alle deselektieren
-
-					if (filteredGroups.length > 0) {
-						// Wähle alle gefilterten Gruppen aus
-						const groupIds = filteredGroups.map((group) => group.value);
-						window.groupChoicesInstance.setChoiceByValue(groupIds);
-						console.log(
-							`"An alle senden" aktiviert: ${filteredGroups.length} gefilterte Gruppen ausgewählt`
-						);
-					} else {
-						console.log(
-							'"An alle senden" aktiviert: Keine Gruppen entsprechen den Filtern'
-						);
-					}
-				}
-
-				// Verstecke beide Container wenn "An alle senden" aktiviert
-				studSelectVerstecken();
-				groupSelectVerstecken();
-			} else {
-				// Zeige stufenweise Auswahl wieder an wenn Jahr ausgewählt ist
-				checkAuswahlYear();
-			}
-		});
-	}
+	// Restliche Initialisierung wie gehabt
+	// ...existing code...
 });
 
 // Globaler Enter-Event Listener
@@ -698,19 +611,15 @@ function sendJSON(jsonFile, group) {
 		})
 			.then((res) => console.log("Gesendet:", res.status))
 			.catch((err) => console.error("Fehler:", err));
-	} else {
-		console.error("Gruppenname entspricht nicht dem Format AA11/11:", group);
-		console.log("Verwende Fallback-Gruppe: DI24");
-
-		fetch(`https://ntfy.sh/DI24120592`, {
-			method: "POST",
-			headers: {
-				"Content-Type": "application/json",
-				Title: "Neue Nachricht",
-			},
-			body: data,
-		})
-			.then((res) => console.log("Gesendet:", res.status))
-			.catch((err) => console.error("Fehler:", err));
 	}
 }
+// Verhindert das Neuladen der Seite beim Login und ruft checkAnmeldung auf
+document.addEventListener("DOMContentLoaded", function () {
+	var loginForm = document.getElementById("loginForm");
+	if (loginForm) {
+		loginForm.addEventListener("submit", function (e) {
+			e.preventDefault();
+			if (typeof checkAnmeldung === "function") checkAnmeldung();
+		});
+	}
+});

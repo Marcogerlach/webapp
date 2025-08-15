@@ -3,25 +3,27 @@
 # Datum: 13. August 2025
 # Beschreibung: RESTful API zur Verwaltung von Gruppen mit SQLite-Datenbank
 
+
 from flask import Flask, request, jsonify, send_from_directory, redirect
 from flask_sqlalchemy import SQLAlchemy
 import logging
 import os
+from werkzeug.security import check_password_hash, generate_password_hash
+from flask_cors import CORS
+import hashlib
+import hmac
+import base64
 
 # Flask-App initialisieren
 app = Flask(__name__)
 
-# CORS-Konfiguration: Erlaubt Cross-Origin-Requests für Frontend-Integration
-@app.after_request
-def after_request(response):
-    """
-    Fügt CORS-Headers zu allen API-Responses hinzu.
-    Ermöglicht es dem Frontend, von verschiedenen Domains auf die API zuzugreifen.
-    """
-    response.headers.add('Access-Control-Allow-Origin', '*')
-    response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
-    response.headers.add('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS')
-    return response
+# CORS vollständig konfigurieren
+CORS(app, 
+     origins=['http://127.0.0.1:5500', 'http://localhost:5500', 'http://localhost:3000'],
+     methods=['GET', 'POST', 'DELETE', 'OPTIONS'],
+     allow_headers=['Content-Type', 'Authorization'])
+
+
 
 # Datenbank-Konfiguration: SQLite-Datenbank im instances-Ordner
 basedir = os.path.abspath(os.path.dirname(__file__))
@@ -37,6 +39,45 @@ logging.basicConfig(
 )
 logger = logging.getLogger('family_api')
 
+def check_django_password(password, encoded):
+    """
+    Überprüft ein Passwort gegen einen Django-Hash.
+    Django-Format: algorithm$salt$hash
+    """
+    try:
+        parts = encoded.split('$')
+        if len(parts) != 3:
+            return False
+            
+        algorithm, salt, hash_value = parts
+        
+        if algorithm == '1':  # PBKDF2 mit SHA1
+            iterations = 10000  # Django default
+            key = hashlib.pbkdf2_hmac('sha1', password.encode('utf-8'), salt.encode('utf-8'), iterations)
+            computed_hash = key.hex()  # Als Hex-String statt base64
+            return computed_hash == hash_value
+            
+        elif algorithm == '2':  # PBKDF2 mit SHA256
+            iterations = 10000
+            key = hashlib.pbkdf2_hmac('sha256', password.encode('utf-8'), salt.encode('utf-8'), iterations)
+            computed_hash = key.hex()
+            return computed_hash == hash_value
+            
+        else:
+            return False
+            
+    except Exception as e:
+        return False
+
+class User(db.Model):
+    __tablename__ = 'Login'  # Tabellenname in der Datenbank
+    id = db.Column(db.Integer, primary_key=True)
+    benutzer = db.Column(db.String(80), unique=True, nullable=False)
+    Passwort = db.Column(db.String(120), nullable=False)
+    
+    def __repr__(self):
+        return f'<User {self.benutzer}>'
+
 # Datenbank-Modell: Definiert die Struktur der Gruppen-Tabelle
 class Group(db.Model):
     """
@@ -48,14 +89,71 @@ class Group(db.Model):
     name = db.Column(db.String(100), nullable=False)  # Gruppenname (max. 100 Zeichen)
     art = db.Column(db.Integer, nullable=False)    # Art der Gruppe (z.B. "studenten", "auszubildende")
 
-# OPTIONS-Route für CORS Preflight-Requests
-@app.route('/groups', methods=['OPTIONS'])
-def options_groups():
-    """
-    Behandelt CORS Preflight-Requests für /groups Endpunkt.
-    Wird vom Browser automatisch vor Cross-Origin-Requests gesendet.
-    """
-    return '', 200
+# Login-Endpunkt
+@app.route('/api/login', methods=['POST', 'OPTIONS'])
+def login():
+    if request.method == 'OPTIONS':
+        return '', 200
+        
+    try:
+        data = request.get_json()
+        if not data:
+            logger.error("Keine JSON-Daten empfangen")
+            return jsonify({'success': False, 'message': 'JSON-Daten erforderlich'}), 400
+            
+        username = data.get('username')
+        password = data.get('password')
+        
+        if not username or not password:
+            logger.error("Username oder Password fehlt")
+            return jsonify({'success': False, 'message': 'Benutzername und Passwort erforderlich'}), 400
+        
+        # Benutzer aus der Datenbank prüfen
+        try:
+            # Suche spezifischen Benutzer
+            user = User.query.filter_by(benutzer=username).first()
+            
+            if user:
+                # Teste ob es ein gültiger Werkzeug-Hash ist
+                if user.Passwort.startswith(('pbkdf2:', 'scrypt:', 'argon2:')):
+                    try:
+                        password_valid = check_password_hash(user.Passwort, password)
+                        if password_valid:
+                            logger.info(f"Erfolgreiche Anmeldung: {username}")
+                            return jsonify({'success': True, 'message': 'Anmeldung erfolgreich'})
+                    except Exception as hash_error:
+                        pass
+                
+                # Teste ob es ein Django-Hash ist (beginnt mit Ziffer$)
+                elif user.Passwort.startswith(('1$', '2$', '3$', '4$')):
+                    try:
+                        # Django PBKDF2 Hash-Vergleich
+                        django_valid = check_django_password(password, user.Passwort)
+                        if django_valid:
+                            logger.info(f"Erfolgreiche Anmeldung: {username}")
+                            return jsonify({'success': True, 'message': 'Anmeldung erfolgreich'})
+                    except Exception as django_error:
+                        pass
+                
+                else:
+                    # Klartext-Vergleich
+                    if user.Passwort == password:
+                        logger.info(f"Erfolgreiche Anmeldung: {username}")
+                        return jsonify({'success': True, 'message': 'Anmeldung erfolgreich'})
+            else:
+                pass
+            
+            # Wenn wir hier ankommen, war das Login nicht erfolgreich
+            logger.warning(f"Fehlgeschlagene Anmeldung: {username}")
+            return jsonify({'success': False, 'message': 'Ungültige Anmeldedaten'}), 401
+            
+        except Exception as db_error:
+            logger.error(f"Datenbankfehler bei Login: {db_error}")
+            return jsonify({'success': False, 'message': f'Datenbankfehler: {str(db_error)}'}), 500
+    
+    except Exception as e:
+        logger.error(f"Fehler bei Anmeldung: {e}")
+        return jsonify({'success': False, 'message': 'Interner Serverfehler'}), 500
 
 # API-Endpunkt: Alle Gruppen abrufen
 @app.route('/groups', methods=['GET'])
@@ -145,10 +243,14 @@ def delete_group(group_id):
 # CORS-Unterstützung für OPTIONS-Requests (Preflight-Requests)
 @app.route('/groups', methods=['OPTIONS'])
 @app.route('/group/<int:group_id>', methods=['OPTIONS'])
-def options_delete_group(group_id=None):
+@app.route('/api/login', methods=['OPTIONS'])
+def options_handler(group_id=None):
     return '', 200
     
 # Startet die Flask-Anwendung im Debug-Modus
 if __name__ == '__main__':
+    # Keine Tabellen erstellen - nutze existierende Login-Tabelle
+    print("Backend startet - nutze existierende Login-Tabelle")
+    
     # Debug-Modus für Entwicklung aktivieren (automatisches Neuladen bei Dateiänderungen)
-    app.run(debug=True)
+    app.run(debug=True, host='127.0.0.1', port=5000)

@@ -9,7 +9,7 @@
  */
 
 // Basis-URL für API-Anfragen an Flask-Backend
-const url = "http://localhost:5000/groups";
+const url = "http://localhost:5000";
 
 // Globale Variable für Choices.js Instanz
 let choicesInstance = null;
@@ -17,9 +17,43 @@ let choicesInstance = null;
 // Global Objekt erstellen falls nicht vorhanden (für mehrere HTML-Seiten)
 if (typeof Global === "undefined") {
 	window.Global = {};
+
+	// Sichtbarkeit von Content nach Login steuern
+	window.FamilienApp = {
+		showContent: function () {
+			// Haupt-Content anzeigen
+			const mainContent = document.querySelector(".container");
+			if (mainContent) mainContent.style.display = "flex";
+			// Sidebar und andere Inhalte sichtbar machen
+			const sidebar = document.querySelector(".sidebar");
+			if (sidebar) sidebar.style.display = "block";
+			// Info-Content anzeigen
+			const infoContent = document.querySelector(".info-content");
+			if (infoContent) infoContent.style.display = "block";
+
+			// Initialisiere Choices-Dropdowns nach dem Login
+			if (typeof stud === "function") {
+				stud();
+			}
+		},
+		hideContent: function () {
+			// Haupt-Content verstecken
+			const mainContent = document.querySelector(".container");
+			if (mainContent) mainContent.style.display = "none";
+			// Sidebar und andere Inhalte verstecken
+			const sidebar = document.querySelector(".sidebar");
+			if (sidebar) sidebar.style.display = "none";
+			// Info-Content verstecken
+			const infoContent = document.querySelector(".info-content");
+			if (infoContent) infoContent.style.display = "none";
+		},
+	};
 }
 // Speichert alle verfügbaren Gruppen für Frontend-Zugriff
 Global.allGroups = [];
+
+// Globale Benutzer-Variable
+let benutzer = null;
 
 // Schutz gegen mehrfache Ausführung von Löschoperationen
 let isDeletingInProgress = false;
@@ -40,7 +74,7 @@ function ladeGruppen() {
 	}
 
 	// API-Anfrage an Flask-Backend
-	return fetch(url)
+	return fetch(`${url}/groups`)
 		.then((res) => res.json())
 		.then((data) => {
 			if (data.success && data.groups) {
@@ -86,6 +120,8 @@ function ladeGruppen() {
 		.catch((error) => {
 			console.error("Fehler beim Laden der Gruppen:", error);
 		});
+
+	// Datei-Ende: Fehlende schließende Klammer ergänzt
 }
 
 /**
@@ -139,7 +175,7 @@ function hinzufuegen() {
 		const art = extractArtFromGroupName(gruppenname);
 
 		// POST-Request an Flask-API senden
-		fetch(url, {
+		fetch(`${url}/groups`, {
 			method: "POST",
 			headers: {
 				"Content-Type": "application/json",
@@ -274,7 +310,7 @@ async function deleteGroupsSequentially(groupsToDelete) {
 
 		try {
 			// DELETE-Request an Flask-API senden
-			const response = await fetch(`http://localhost:5000/group/${groupId}`, {
+			const response = await fetch(`${url}/group/${groupId}`, {
 				method: "DELETE",
 				headers: {
 					"Content-Type": "application/json",
@@ -335,5 +371,58 @@ async function deleteGroupsSequentially(groupsToDelete) {
 	}
 	if (errorCount > 0) {
 		alert(`${errorCount} Gruppe(n) konnten nicht gelöscht werden.`);
+	}
+}
+
+function checkAnmeldung() {
+	const anmeldename = document.getElementById("anmeldename").value;
+	const anmeldepasswort = document.getElementById("anmeldepasswort").value;
+	if (anmeldename && anmeldepasswort) {
+		// Nutze den neuen API-Endpunkt statt der lokalen Überprüfung
+		fetch(`${url}/api/login`, {
+			method: "POST",
+			headers: {
+				"Content-Type": "application/json",
+			},
+			body: JSON.stringify({
+				username: anmeldename,
+				password: anmeldepasswort,
+			}),
+		})
+			.then((response) => response.json())
+			.then((data) => {
+				if (data.success) {
+					// Login erfolgreich
+					console.log("Login erfolgreich:", data);
+					//alert("Login erfolgreich! ");
+
+					// Benutzer im localStorage speichern
+					localStorage.setItem("benutzer", anmeldename);
+					localStorage.setItem("password", "wasser");
+
+					// Globale benutzer-Variable aktualisieren
+					if (benutzer != "admin") {
+						benutzer = anmeldename;
+					} else {
+						benutzer = "3";
+					}
+
+					// Anmelde-Formular ausblenden
+					document.getElementById("anmeldenContainer").style.display = "none";
+
+					// Inhalte anzeigen
+					window.FamilienApp.showContent();
+				} else {
+					// Login fehlgeschlagen
+					console.error("Login fehlgeschlagen:", data.message);
+					alert("Anmeldung fehlgeschlagen: " + data.message);
+				}
+			})
+			.catch((error) => {
+				console.error("Fehler bei der Anmeldung:" + error);
+				//alert("Fehler bei der Anmeldung. Bitte versuche es später erneut.");
+			});
+	} else {
+		alert("Bitte fülle alle Felder aus.");
 	}
 }
