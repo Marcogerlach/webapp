@@ -623,3 +623,9 @@ document.addEventListener("DOMContentLoaded", function () {
 		});
 	}
 });
+function abbrechen() {
+	const popup = document.getElementById("popup");
+	if (popup) {
+		popup.style.display = "none"; // Verstecke das Popup
+	}
+}
