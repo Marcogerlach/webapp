@@ -236,6 +236,11 @@ function extractArtFromGroupName(groupName) {
  * - Verhindert Live Server WebSocket-Interferenz durch sequenzielle Verarbeitung
  * - Aktualisiert UI nach erfolgreichem Löschen
  */
+function loeschenbe() {
+	deleteGroupsSequentially([...selectedGroups]);
+}
+let selectedGroups = [];
+
 function loeschen() {
 	// Verhindere mehrfache parallele Ausführung
 	if (isDeletingInProgress) {
@@ -244,8 +249,6 @@ function loeschen() {
 
 	// Flag setzen um andere Operationen zu blockieren
 	isDeletingInProgress = true;
-
-	let selectedGroups = [];
 
 	// Prüfe ob Choices.js für group-select-loeschen verwendet wird
 	if (window.groupChoicesLoeschenInstance) {
@@ -277,7 +280,10 @@ function loeschen() {
 	}
 
 	// Rufe sequenzielle Löschfunktion auf (Array kopieren für Unveränderlichkeit)
-	deleteGroupsSequentially([...selectedGroups]);
+	const popup = document.getElementById("popup");
+	if (popup) {
+		popup.style.display = "block"; // Zeige das Popup
+	}
 }
 
 /**
