@@ -30,6 +30,137 @@ function toggleAll(masterCheckbox, type) {
  * - Setzt Formular nach erfolgreichem Versand zurück
  * - Aktualisiert automatisch die Seite für neue Eingaben
  */
+function sendAtScheduledTime() {
+	// Nachrichtentext aus Textarea extrahieren
+	const message = document.getElementById("message").value;
+	let selectedGroupIds = [];
+	let selectedGroupNames = [];
+
+	// Prüfe ob "An alle senden" aktiviert ist
+	const sendToAllCheckbox = document.querySelector("#sendToAll");
+	if (sendToAllCheckbox && sendToAllCheckbox.checked) {
+		// Ermittle aktuelle Filter wie in der Checkbox-Logik
+		const selectedYears = [];
+		const selectedStudTypes = [];
+
+		// Jahr-Filter ermitteln
+		if (window.yearChoicesInstance) {
+			const yearValues = window.yearChoicesInstance.getValue();
+			yearValues.forEach((item) => selectedYears.push(item.value));
+		}
+
+		// Studenten-Art-Filter ermitteln
+		if (window.studChoicesInstance) {
+			const studValues = window.studChoicesInstance.getValue();
+			studValues.forEach((item) => selectedStudTypes.push(item.value));
+		}
+
+		// Filtere Gruppen basierend auf aktuellen Auswahlen
+		let filteredGroups = Global.allGroups || [];
+
+		if (selectedYears.length > 0 || selectedStudTypes.length > 0) {
+			filteredGroups = Global.allGroups.filter((group) => {
+				let yearMatch = true;
+				let typeMatch = true;
+
+				// Prüfe Jahr-Filter
+				if (selectedYears.length > 0) {
+					const year = extractYearFromGroupName(group.label);
+					yearMatch = selectedYears.includes(year);
+				}
+
+				// Prüfe Art-Filter (Studenten vs. Auszubildende)
+				if (selectedStudTypes.length > 0) {
+					// Mappe Frontend-Werte zu Datenbank-Werten
+					const dbArtValues = selectedStudTypes.map((studType) => {
+						if (studType === "studenten") return "1";
+						if (studType === "auszubildende") return "2";
+						return studType; // Fallback für direkte Zahlen
+					});
+
+					const groupArt = group.art ? group.art.toString() : "1";
+					typeMatch = dbArtValues.includes(groupArt);
+				}
+
+				return yearMatch && typeMatch;
+			});
+		}
+
+		selectedGroupNames = filteredGroups.map((group) => group.label);
+	} else {
+		// Normale Gruppenauswahl über Choices.js
+		if (window.groupChoicesInstance) {
+			// Extrahiere ausgewählte Gruppen-IDs aus Choices.js
+			selectedGroupIds = window.groupChoicesInstance.getValue(true);
+
+			// Konvertiere IDs zu Gruppennamen für Anzeige/Logging
+			selectedGroupNames = selectedGroupIds.map((id) => {
+				const group = Global.allGroups.find((g) => g.value == id);
+				return group ? group.label : id;
+			});
+		} else {
+			// Fallback für normales Select-Element
+			const groupSelect = document.getElementById("group-select");
+			if (groupSelect) {
+				selectedGroupIds = Array.from(groupSelect.selectedOptions).map(
+					(option) => option.value
+				);
+
+				// Wandle IDs in Namen um für konsistente Verarbeitung
+				selectedGroupNames = selectedGroupIds.map((id) => {
+					const group = Global.allGroups.find((g) => g.value == id);
+					return group ? group.label : id;
+				});
+			}
+		}
+	}
+
+	// Validierung: Nachricht und Gruppenauswahl sind erforderlich
+	if (selectedGroupNames.length == 0 || message == "") {
+		console.error(
+			"Validierung fehlgeschlagen - Gruppen:",
+			selectedGroupNames.length,
+			"Message leer:",
+			message == ""
+		);
+		alert("fehlende Angaben");
+		return;
+	}
+
+	// Hole Datum und Zeit aus den Input-Feldern
+	const eventDate = document.getElementById("eventDate").value;
+	const timeInput = document.getElementById("time-input").value;
+
+	if (!eventDate || !timeInput) {
+		alert("Bitte wählen Sie Datum und Uhrzeit aus!");
+		return;
+	}
+
+	// Kombiniere Datum und Zeit zu einem Date-Objekt
+	const scheduledDateTime = new Date(`${eventDate}T${timeInput}`);
+	const now = new Date();
+
+	// Überprüfe, ob der geplante Zeitpunkt in der Zukunft liegt
+	if (scheduledDateTime <= now) {
+		alert("Der geplante Zeitpunkt muss in der Zukunft liegen!");
+		return;
+	}
+
+	// Konvertiere zu Unix-Timestamp für ntfy
+	const scheduledTimestamp = Math.floor(scheduledDateTime.getTime() / 1000);
+
+	// Erstelle JSON-Objekt für Verarbeitung/Speicherung
+	const myObject = {
+		message: message,
+		groups: selectedGroupNames,
+		scheduledAt: scheduledDateTime.toISOString(),
+	};
+
+	buildJson(myObject, selectedGroupNames, eventDate, scheduledTimestamp);
+
+	// Schließe das Popup
+	closePopupTime();
+}
 function senden() {
 	// Nachrichtentext aus Textarea extrahieren
 	const message = document.getElementById("message").value;
@@ -148,15 +279,20 @@ function senden() {
  * - Erneuert Choices.js Auswahl für nächste Eingabe
  * - Lädt Gruppendaten neu für aktuellen Zustand
  */
-function buildJson(myObject, selectedGroupNames) {
+function buildJson(myObject, selectedGroupNames, date, time) {
 	// Konvertiere Objekt zu formattiertem JSON-String
 	const jsonString = JSON.stringify(myObject, null, 2);
 	selectedGroupNames.forEach((groupName) => {
-		sendJSON(jsonString, groupName);
+		sendJSON(jsonString, groupName, date, time);
 	});
 
-	// Erfolgsmeldung und Seitenaktualisierung
-	alert("Nachricht erfolgreich gesendet!");
+	// Erfolgsmeldung je nach Zustellungsart
+	if (time && typeof time === "number") {
+		const scheduledDate = new Date(time * 1000);
+		alert(`Nachricht geplant für ${scheduledDate.toLocaleString()}!`);
+	} else {
+		alert("Nachricht erfolgreich gesendet!");
+	}
 
 	// Formular zurücksetzen und Seite nach kurzer Verzögerung aktualisieren
 	setTimeout(() => {
@@ -172,6 +308,14 @@ function buildJson(myObject, selectedGroupNames) {
 		const sendToAllCheckbox = document.querySelector("#sendToAll");
 		if (sendToAllCheckbox) {
 			sendToAllCheckbox.checked = false;
+		}
+
+		// Bei geplanten Nachrichten auch die Zeit-Inputs zurücksetzen
+		if (time) {
+			const eventDateInput = document.getElementById("eventDate");
+			const timeInput = document.getElementById("time-input");
+			if (eventDateInput) eventDateInput.value = "";
+			if (timeInput) timeInput.value = "";
 		}
 
 		// ENTFERNT: ladeGruppen() Aufruf um Endlosschleife zu vermeiden
@@ -590,7 +734,7 @@ function stud() {
 	}
 }
 
-function sendJSON(jsonFile, group) {
+function sendJSON(jsonFile, group, date, time) {
 	const data = jsonFile;
 	console.log("Original Gruppenname:", group);
 
@@ -601,15 +745,37 @@ function sendJSON(jsonFile, group) {
 		console.log("Extrahierte Gruppe:", extractedGroup);
 		console.log("Neue Nachricht an Gruppe:", extractedGroup);
 
+		// Basis-Headers für ntfy
+		const headers = {
+			"Content-Type": "application/json",
+			Title: "Neue Nachricht",
+		};
+
+		// Füge At-Header nur hinzu, wenn time (timestamp) übergeben wurde
+		if (time && typeof time === "number") {
+			headers["At"] = time.toString();
+			console.log(
+				"Geplante Zustellung für:",
+				new Date(time * 1000).toLocaleString()
+			);
+		} else {
+			console.log("Sofortige Zustellung");
+		}
+
 		fetch(`https://ntfy.sh/${extractedGroup}120592`, {
 			method: "POST",
-			headers: {
-				"Content-Type": "application/json",
-				Title: "Neue Nachricht",
-			},
+			headers: headers,
 			body: data,
 		})
-			.then((res) => console.log("Gesendet:", res.status))
+			.then((res) => {
+				console.log("Gesendet:", res.status);
+				if (time) {
+					console.log(
+						"Nachricht geplant für:",
+						new Date(time * 1000).toLocaleString()
+					);
+				}
+			})
 			.catch((err) => console.error("Fehler:", err));
 	}
 }
@@ -627,5 +793,18 @@ function abbrechen() {
 	const popup = document.getElementById("popup");
 	if (popup) {
 		popup.style.display = "none"; // Verstecke das Popup
+	}
+}
+function openPopupTime() {
+	const popup = document.getElementById("popupTime");
+	if (popup) {
+		popup.style.display = "block";
+	}
+}
+
+function closePopupTime() {
+	const popup = document.getElementById("popupTime");
+	if (popup) {
+		popup.style.display = "none";
 	}
 }

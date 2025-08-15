@@ -71,7 +71,21 @@
 					<label for="sendToAll">An alle senden</label>
 				</div>
 
-				<button onclick="senden()">Senden</button>
+				<button onclick="senden()">Sofort senden</button>
+				<button onclick="openPopupTime()">
+					Senden zu einer bestimmten Zeit
+				</button>
+				<div id="popupTime">
+					<h3>Wann wollen sie die Nachricht senden?</h3>
+					<p>Datum:</p>
+					<input type="date" id="eventDate" />
+					<p>Uhrzeit:</p>
+					<input type="time" id="time-input" />
+					<button onclick="sendAtScheduledTime()">Senden</button>
+					<button id="cancelButton" onclick="closePopupTime()">
+						Abbrechen
+					</button>
+				</div>
 			</div>
 		</div>
 	</body>
