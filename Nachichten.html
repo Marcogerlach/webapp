@@ -33,7 +33,7 @@
 					id="hinzufügen"
 					onclick="window.location.href='hinzufuegen.html'"
 				>
-					hinzufügen
+					Hinzufügen
 				</button>
 			</div>
 			<div id="overlay"></div>
@@ -71,8 +71,8 @@
 					<label for="sendToAll">An alle senden</label>
 				</div>
 
-				<button onclick="senden()">Sofort senden</button>
-				<button onclick="openPopupTime()">
+				<button onclick="senden()" class="nachbutton">Sofort senden</button>
+				<button onclick="openPopupTime()" class="nachbutton">
 					Senden zu einer bestimmten Zeit
 				</button>
 				<div id="popupTime">
@@ -81,10 +81,14 @@
 					<input type="date" id="eventDate" />
 					<p>Uhrzeit:</p>
 					<input type="time" id="time-input" />
-					<button onclick="sendAtScheduledTime()">Senden</button>
-					<button id="cancelButton" onclick="closePopupTime()">
-						Abbrechen
-					</button>
+					<div class="button-container">
+						<button onclick="sendAtScheduledTime()" class="nachbutton">
+							Senden
+						</button>
+						<button id="cancelButton" onclick="closePopupTime()">
+							Abbrechen
+						</button>
+					</div>
 				</div>
 			</div>
 		</div>
